@@ -1,44 +1,49 @@
 require('colors');
 
-var express  = require('express'),
-    parser   = require('body-parser'),
-    logger   = require('morgan'),
-    port     = process.env.PORT || 1337,
-    Routes   = require('./routes'),
-    path     = require('path'),
-    ejs      = require('ejs'),
+var express = require('express'),
+    bodyParser = require('body-parser'),
+    path = require('path'),
+    logger = require('morgan'),
+    ejs = require('ejs'),
     mongoose = require('mongoose'),
-    app      = express();
+    sessions = require('client-sessions'), // encrypted cookies!
+    port = process.env.PORT || 1337,
+    Routes = require('./routes'),
+    app = express();
 
-mongoose.connect('mongodb://localhost/beer', (err) => {
-    if(err) {
-        console.error("Where's the beer? :(".red, err);
+app.use(logger('dev'));
+app.use(sessions({
+    cookieName: '_mean-auth', // front-end cookie name
+    secret: 'DR@G0N$', // the encryption password : keep this safe
+    requestKey: 'session', // req.session,
+    duration: 86400, // 60 * 60 * 24 (number of seconds in a day), tells the middleware when the cookie/session should expire,
+    cookie: {
+        ephemeral: false,   // when true, cookie expires when browser is closed
+        httpOnly: true,     // when true, the cookie is not accesbile via front-end JavaScript
+        secure: false       // when true, cookie will only be read when sent over HTTPS
+    }
+}));
+
+app.use(express.static(path.join(__dirname,'public')));
+app.post('*', bodyParser.json(), bodyParser.urlencoded({ extended: true }));
+
+app.set('view engine','html'); // allows us to specify the default extension for the files in the views folder
+app.engine('html', ejs.renderFile); // this is the function that binds to res.render
+
+mongoose.connect('mongodb://localhost/mean-auth', (mongooseErr) => {
+    if( mongooseErr ) {
+        console.error('#ERROR#'.red,'Could not initilize mongoose!', mongooseErr);
     } else {
-        console.info('Let us all be tipsy, ya?'.green);
+        console.info('Mongoose initilized!'.green.bold);
     }
 });
 
-app.use( logger('dev') );
-
-app.set('view engine', 'html'); // private view files
-app.engine('html', ejs.renderFile) // res.render
-
-// app.set('views', path)
-
-app.use(express.static(path.join(__dirname,'public')));
-
-// vetically mounting body-parser is good when you know for a fact that you are going to use more verbs (be more RESTful) like PUT / PATCH / DELETE / etc. because `req.body` is where you payload will live on those type of routes.
-
-app.use(parser.json())
-app.use(parser.urlencoded({ extended: true }))
-
 Routes(app);
 
-app.listen(port, (err)=>{
-    if(err) {
-        console.error('Could not start server :(', err);
-        process.exit(1); // no formalities here, but this will just exit the app if the server can't start
+app.listen(port, (err) => {
+    if( err ) {
+        console.error('#ERROR#'.red,'Could not start server! :(');
     } else {
-        console.info('Server up!','Port:'.cyan, port);
+        console.log('\nMEAN Auth Server UP!'.green.bold, 'PORT:'.yellow, port);
     }
 })
